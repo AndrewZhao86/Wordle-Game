@@ -1,18 +1,17 @@
 import random
 import sys
 from valid_words import valid_words
+from colorama import Fore, Style
 
 SECRET_WORD = random.choice(valid_words)
 MAX_ATTEMPTS = 6
 
 class Color:
-	PREFIX = '\033'
-	RESET = "\033[0m"
-	GREY = "\033[90m"
-	RED = "\033[91m"
-	GREEN = "\033[92m"
-	YELLOW = "\033[93m"
-	PRIORITY_COLORS = [RED, GREEN]
+	RESET = Style.RESET_ALL
+	GREY = Fore.LIGHTBLACK_EX
+	GREEN = Fore.GREEN
+	YELLOW = Fore.YELLOW
+	PRIORITY_COLORS = [GREEN, YELLOW]
 
 class WordGuess:
 	attempt_number = 1
@@ -41,25 +40,31 @@ class WordGuess:
 			return False
 		return True
 
+	def count_secret_word_letters(self):
+		return {char: SECRET_WORD.count(char) for char in set(SECRET_WORD)}
+
 	def apply_correct_positions(self):
-		for index, _ in enumerate(self.char_list):
+		secret_letter_count = self.count_secret_word_letters()
+		for index, guessed_char in enumerate(self.char_list):
 			correct_char = SECRET_WORD[index]
-			guessed_char = self.char_list[index]
 			if correct_char == guessed_char:
 				colored_char = f"{Color.GREEN}{correct_char}{Color.RESET}"
 				self.char_list[index] = colored_char
 				self.update_letter_map(correct_char, colored_char)
+				secret_letter_count[correct_char] -= 1
+		return secret_letter_count
 
-	def apply_misplaced_positions(self):
-		for index, _ in enumerate(self.char_list):
-			guessed_char = self.char_list[index]
-			if guessed_char in SECRET_WORD:
-				colored_char = f"{Color.YELLOW}{guessed_char}{Color.RESET}"
-				self.char_list[index] = colored_char
-				self.update_letter_map(guessed_char, colored_char)
-			else:
-				colored_char = f"{Color.RED}{guessed_char}{Color.RESET}"
-				self.update_letter_map(guessed_char, colored_char)
+	def apply_misplaced_positions(self, secret_letter_count):
+		for index, guessed_char in enumerate(self.char_list):
+			if isinstance(guessed_char, str):  # Skip already colored characters
+				if guessed_char in SECRET_WORD and secret_letter_count[guessed_char] > 0:
+					colored_char = f"{Color.YELLOW}{guessed_char}{Color.RESET}"
+					self.char_list[index] = colored_char
+					self.update_letter_map(guessed_char, colored_char)
+					secret_letter_count[guessed_char] -= 1
+				else:
+					colored_char = f"{Color.GREY}{guessed_char}{Color.RESET}"
+					self.update_letter_map(guessed_char, colored_char)
 
 	def update_letter_map(self, letter, colored_letter):
 		if letter not in WordGuess.letter_map:
@@ -70,8 +75,8 @@ class WordGuess:
 			WordGuess.letter_map[letter] = colored_letter
 
 	def process_guess(self):
-		self.apply_correct_positions()
-		self.apply_misplaced_positions()
+		secret_letter_count = self.apply_correct_positions()
+		self.apply_misplaced_positions(secret_letter_count)
 		self.formatted_guess = "".join(self.char_list)
 		WordGuess.previous_guesses.append(self.user_input)
 		print(self.formatted_guess)
